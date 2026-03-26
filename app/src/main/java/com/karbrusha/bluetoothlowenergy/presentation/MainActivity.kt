@@ -126,20 +126,27 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun BluetoothScreen(
     modifier: Modifier = Modifier,
-    viewModel: BluetoothViewmodel = hiltViewModel(),
     state: BluetoothUiState,
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-//        BluetoothDeviceList()
+        BluetoothDeviceList(
+            pairedDevices = state.pairedDevices,
+            scannedDevices = state.scannedDevices,
+            onClick = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(vertical = 24.dp)
+        )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
             Button(onClick = onStartScan) {
-                Text(text = "Start Scan")
+                Text(text = "Start Scan", fontWeight = FontWeight.Bold)
             }
 
             Button(onClick = onStopScan) {
-                Text(text = "Start Scan")
+                Text(text = "Stop Scan", fontWeight = FontWeight.Bold)
             }
         }
     }
