@@ -140,7 +140,12 @@ fun BluetoothScreen(
                 .weight(1f)
                 .padding(vertical = 24.dp)
         )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 50.dp),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
             Button(onClick = onStartScan) {
                 Text(text = "Start Scan", fontWeight = FontWeight.Bold)
             }
