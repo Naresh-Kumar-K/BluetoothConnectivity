@@ -1,4 +1,4 @@
-package com.karbrusha.bluetoothlowenergy
+package com.karbrusha.bluetoothlowenergy.presentation
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
