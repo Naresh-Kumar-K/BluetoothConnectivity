@@ -9,68 +9,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.karbrusha.bluetoothlowenergy.domain.BluetoothDevice
+import com.karbrusha.bluetoothlowenergy.presentation.components.BluetoothScreen
 import com.karbrusha.bluetoothlowenergy.ui.theme.BluetoothLowEnergyTheme
 import dagger.hilt.android.AndroidEntryPoint
-
-//@AndroidEntryPoint
-//class MainActivity : ComponentActivity() {
-//
-//    @Inject lateinit var analyticsService: AnalyticsService
-//
-//    override fun onCreate(savedInstanceState: Bundle?) {
-//        super.onCreate(savedInstanceState)
-//        analyticsService.logEvent("MainActivity.onCreate")
-//        enableEdgeToEdge()
-//        setContent {
-//            BluetoothLowEnergyTheme {
-//                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-//                    Greeting(
-//                        name = "Android",
-//                        modifier = Modifier.padding(innerPadding)
-//                    )
-//                }
-//            }
-//        }
-//    }
-//}
-//
-//@Composable
-//fun Greeting(name: String, modifier: Modifier = Modifier) {
-//    Text(
-//        text = "Hello $name!",
-//        modifier = modifier
-//    )
-//}
-//
-//@Preview(showBackground = true)
-//@Composable
-//fun GreetingPreview() {
-//    BluetoothLowEnergyTheme {
-//        Greeting("Android")
-//    }
-//}
-
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -120,89 +68,5 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-}
-
-@Composable
-fun BluetoothScreen(
-    modifier: Modifier = Modifier,
-    state: BluetoothUiState,
-    onStartScan: () -> Unit,
-    onStopScan: () -> Unit,
-) {
-    Column(Modifier.fillMaxSize()) {
-        BluetoothDeviceList(
-            pairedDevices = state.pairedDevices,
-            scannedDevices = state.scannedDevices,
-            onClick = {},
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(vertical = 24.dp)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 50.dp),
-            horizontalArrangement = Arrangement.SpaceAround
-        ) {
-            Button(onClick = onStartScan) {
-                Text(text = "Start Scan", fontWeight = FontWeight.Bold)
-            }
-
-            Button(onClick = onStopScan) {
-                Text(text = "Stop Scan", fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-fun BluetoothDeviceList(
-    modifier: Modifier = Modifier,
-    pairedDevices: List<BluetoothDevice>,
-    scannedDevices: List<BluetoothDevice>,
-    onClick: (BluetoothDevice) -> Unit,
-) {
-
-    LazyColumn(modifier = modifier) {
-        item {
-            Text(
-                text = "Paired Devices", modifier = Modifier.padding(16.dp),
-                fontWeight = FontWeight.Bold
-            )
-        }
-        items(pairedDevices) { device ->
-            Text(
-                text = device.name ?: "No Name",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { onClick(device) }
-                    .padding(16.dp),
-            )
-        }
-        item {
-            Text(
-                text = "Scanned Device", modifier = Modifier.padding(16.dp),
-                fontWeight = FontWeight.Bold
-            )
-        }
-        items(scannedDevices) { device ->
-            Text(
-                text = device.name ?: "No Name",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { onClick(device) }
-                    .padding(16.dp),
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun BluetoothScreenPreview() {
-    BluetoothLowEnergyTheme {
-        Text(text = "Not scanning")
     }
 }
