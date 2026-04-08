@@ -21,11 +21,12 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -253,7 +254,11 @@ private fun ClassicDeviceCard(
                 }
             }
         }
-        Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
+        HorizontalDivider(
+            Modifier,
+            DividerDefaults.Thickness,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()

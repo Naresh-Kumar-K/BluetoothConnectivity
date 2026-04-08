@@ -218,15 +218,11 @@ class AndroidBluetoothController(
         bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
         val scanner = bluetoothLeScanner ?: return
 
-        _bleScannedDevices.update { emptyList() }
-        _gattConnectionState.update {
-            it.copy(
-                status = GattConnectionStatus.Disconnected,
-                connectedDevice = null,
-                services = emptyList(),
-                characteristicValues = emptyMap(),
-                errorMessage = null,
-            )
+        // IMPORTANT: Don't wipe the current GATT connection when starting a new scan.
+        // Users may want to keep a device connected while discovering other devices.
+        val connected = _gattConnectionState.value.connectedDevice
+        _bleScannedDevices.update {
+            if (connected != null) listOf(BleScannedDevice(device = connected, rssi = null)) else emptyList()
         }
 
         val callback = object : ScanCallback() {

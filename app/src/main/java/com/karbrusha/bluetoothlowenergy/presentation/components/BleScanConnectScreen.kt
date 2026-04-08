@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
@@ -86,6 +87,16 @@ fun BleScanConnectScreen(
                 )
             }
 
+            if (connectedDevice != null) {
+                item {
+                    ConnectedDeviceCard(
+                        deviceName = connectedDevice.name ?: "Unknown Device",
+                        deviceAddress = connectedDevice.address,
+                        onOpenDetails = { onOpenDetails(connectedDevice) },
+                    )
+                }
+            }
+
             state.lastErrorMessage?.let { msg ->
                 item {
                     Card(
@@ -136,6 +147,9 @@ fun BleScanConnectScreen(
             }
 
             items(state.bleScannedDevices, key = { it.device.address }) { scanned ->
+                // If we're connected to this device, it's already shown as "Connected device" card above.
+                if (connectedDevice?.address == scanned.device.address) return@items
+
                 DeviceCard(
                     scanned = scanned,
                     isConnected = connectedDevice?.address == scanned.device.address,
@@ -231,6 +245,90 @@ private fun HeroHeader(
                 modifier = Modifier.weight(1f),
             ) {
                 Text(text = "Stop")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectedDeviceCard(
+    deviceName: String,
+    deviceAddress: String,
+    onOpenDetails: () -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        onClick = onOpenDetails,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(MaterialTheme.shapes.large)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bluetooth,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = deviceName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = deviceAddress,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Connected",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+
+        Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            OutlinedButton(
+                onClick = onOpenDetails,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Open details")
             }
         }
     }
