@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ButtonDefaults
@@ -50,6 +51,7 @@ fun BleScanConnectScreen(
     state: BleScanConnectUiState,
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
+    onClear: () -> Unit,
     onConnect: (BluetoothDeviceDomain) -> Unit,
     onDisconnect: (BluetoothDeviceDomain) -> Unit,
     onReadCharacteristic: (BleCharacteristicRef) -> Unit,
@@ -113,11 +115,23 @@ fun BleScanConnectScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Filter",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        FilledTonalButton(
+                            onClick = onClear,
+                            enabled = state.bleScannedDevices.isNotEmpty(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Clear", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Filter",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 

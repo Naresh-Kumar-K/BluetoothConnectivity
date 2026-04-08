@@ -46,6 +46,10 @@ class BleScanConnectViewModel @Inject constructor(
         bluetoothController.stopScan()
     }
 
+    fun clearScanResults() {
+        bluetoothController.clearBleScannedDevices()
+    }
+
     fun connect(device: BluetoothDeviceDomain) {
         bluetoothController.connect(device)
     }

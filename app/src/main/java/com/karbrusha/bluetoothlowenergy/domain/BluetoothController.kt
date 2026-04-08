@@ -17,6 +17,9 @@ interface BluetoothController {
     fun startScan()
     fun stopScan()
 
+    fun clearBleScannedDevices()
+    fun clearClassicScannedDevices()
+
     fun connect(device: BluetoothDeviceDomain)
     fun disconnect(device: BluetoothDeviceDomain)
 

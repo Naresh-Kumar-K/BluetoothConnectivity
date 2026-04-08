@@ -278,6 +278,10 @@ class AndroidBluetoothController(
         }
     }
 
+    override fun clearBleScannedDevices() {
+        _bleScannedDevices.update { emptyList() }
+    }
+
     override fun connect(device: BluetoothDeviceDomain) {
         if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
             _gattConnectionState.update {
@@ -394,6 +398,10 @@ class AndroidBluetoothController(
                 isClassicReceiverRegistered = false
             }
         }
+    }
+
+    override fun clearClassicScannedDevices() {
+        _scannedDevice.update { emptyList() }
     }
 
     override fun release() {

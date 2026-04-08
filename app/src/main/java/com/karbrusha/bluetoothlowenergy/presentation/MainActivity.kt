@@ -185,6 +185,7 @@ class MainActivity : ComponentActivity() {
                             BluetoothScreen(
                                 onStopScan = classicViewModel::stopScan,
                                 onStartScan = classicViewModel::startScan,
+                                onClear = classicViewModel::clearScanResults,
                                 state = classicState,
                             )
                         }
@@ -194,6 +195,7 @@ class MainActivity : ComponentActivity() {
                                 state = bleState,
                                 onStartScan = bleViewModel::startScan,
                                 onStopScan = bleViewModel::stopScan,
+                                onClear = bleViewModel::clearScanResults,
                                 onConnect = bleViewModel::connect,
                                 onDisconnect = bleViewModel::disconnect,
                                 onReadCharacteristic = bleViewModel::readCharacteristic,

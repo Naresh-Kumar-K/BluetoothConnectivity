@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +48,7 @@ fun BluetoothScreen(
     state: BluetoothUiState,
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
+    onClear: () -> Unit,
 ) {
     val bg = MaterialTheme.colorScheme.background
     val hero = Brush.verticalGradient(
@@ -85,11 +87,23 @@ fun BluetoothScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Filter",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        FilledTonalButton(
+                            onClick = onClear,
+                            enabled = state.scannedDevices.isNotEmpty(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Clear", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Filter",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 
