@@ -39,9 +39,7 @@ fun BluetoothScreen(
                 .padding(vertical = 24.dp)
         )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 50.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
             Button(onClick = onStartScan) {
@@ -64,21 +62,21 @@ fun BluetoothDeviceList(
 ) {
 
     LazyColumn(modifier = modifier) {
-        item {
-            Text(
-                text = "Paired Devices", modifier = Modifier.padding(16.dp),
-                fontWeight = FontWeight.Bold
-            )
-        }
-        items(pairedDevices) { device ->
-            Text(
-                text = device.name ?: "No Name",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { onClick(device) }
-                    .padding(16.dp),
-            )
-        }
+//        item {
+//            Text(
+//                text = "Paired Devices", modifier = Modifier.padding(16.dp),
+//                fontWeight = FontWeight.Bold
+//            )
+//        }
+//        items(pairedDevices) { device ->
+//            Text(
+//                text = device.name ?: "No Name",
+//                modifier = Modifier
+//                    .fillMaxSize()
+//                    .clickable { onClick(device) }
+//                    .padding(16.dp),
+//            )
+//        }
         item {
             Text(
                 text = "Scanned Device", modifier = Modifier.padding(16.dp),
