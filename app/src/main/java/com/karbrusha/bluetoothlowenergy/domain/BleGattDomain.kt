@@ -44,6 +44,8 @@ data class GattConnectionState(
     val services: List<BleService> = emptyList(),
     // Last known characteristic values (updated on read/write callbacks).
     val characteristicValues: Map<BleCharacteristicRef, ByteArray> = emptyMap(),
+    // Which characteristics currently have notifications/indications enabled.
+    val notifyingCharacteristics: Set<BleCharacteristicRef> = emptySet(),
     val errorMessage: String? = null,
 )
 

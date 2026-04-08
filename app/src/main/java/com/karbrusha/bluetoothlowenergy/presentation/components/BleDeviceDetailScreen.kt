@@ -64,11 +64,14 @@ fun BleDeviceDetailScreen(
     gattConnectionState: GattConnectionState,
     gattServices: List<BleService>,
     characteristicValues: Map<BleCharacteristicRef, ByteArray>,
+    notifyingCharacteristics: Set<BleCharacteristicRef>,
     onBack: () -> Unit,
     onConnect: (BluetoothDeviceDomain) -> Unit,
     onDisconnect: (BluetoothDeviceDomain) -> Unit,
     onReadCharacteristic: (BleCharacteristicRef) -> Unit,
     onWriteCharacteristicHex: (BleCharacteristicRef, String) -> Unit,
+    onSetNotificationsEnabled: (BleCharacteristicRef, Boolean) -> Unit,
+    onOpenLiveData: () -> Unit,
 ) {
     val bg = MaterialTheme.colorScheme.background
     val hero = Brush.verticalGradient(
@@ -159,6 +162,15 @@ fun BleDeviceDetailScreen(
                     }
 
                     item {
+                        FilledTonalButton(
+                            onClick = onOpenLiveData,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = "Live Data", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -181,8 +193,10 @@ fun BleDeviceDetailScreen(
                         ServiceCard(
                             service = service,
                             characteristicValues = characteristicValues,
+                            notifyingCharacteristics = notifyingCharacteristics,
                             onReadCharacteristic = onReadCharacteristic,
                             onWriteCharacteristicHex = onWriteCharacteristicHex,
+                            onSetNotificationsEnabled = onSetNotificationsEnabled,
                         )
                     }
 
@@ -357,8 +371,10 @@ private fun RssiChart() {
 private fun ServiceCard(
     service: BleService,
     characteristicValues: Map<BleCharacteristicRef, ByteArray>,
+    notifyingCharacteristics: Set<BleCharacteristicRef>,
     onReadCharacteristic: (BleCharacteristicRef) -> Unit,
     onWriteCharacteristicHex: (BleCharacteristicRef, String) -> Unit,
+    onSetNotificationsEnabled: (BleCharacteristicRef, Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(true) }
 
@@ -421,6 +437,7 @@ private fun ServiceCard(
                     key(ref) {
                         val props: BleCharacteristicProperties = characteristic.properties
                         val lastValue = characteristicValues[ref]
+                        val isNotifying = notifyingCharacteristics.contains(ref)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -453,10 +470,14 @@ private fun ServiceCard(
                                 }
                                 if (props.notifiable || props.indicatable) {
                                     OutlinedButton(
-                                        onClick = { /* TODO enable notifications */ },
+                                        onClick = { onSetNotificationsEnabled(ref, !isNotifying) },
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     ) {
-                                        Text(text = "NOTIFY", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            text = if (isNotifying) "STOP" else "NOTIFY",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
                                     }
                                 }
                             }

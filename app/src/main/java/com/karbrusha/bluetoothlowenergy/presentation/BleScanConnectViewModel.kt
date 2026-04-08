@@ -67,6 +67,10 @@ class BleScanConnectViewModel @Inject constructor(
         bluetoothController.writeCharacteristic(characteristicRef, bytes)
     }
 
+    fun setNotificationsEnabled(characteristicRef: BleCharacteristicRef, enabled: Boolean) {
+        bluetoothController.setNotificationsEnabled(characteristicRef, enabled)
+    }
+
     private fun String.toByteArrayFromHexOrNull(): ByteArray? {
         // Accept whitespace, e.g. "01 A0 FF".
         val normalized = trim().replace(Regex("\\s+"), "")

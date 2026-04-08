@@ -35,5 +35,10 @@ interface BluetoothController {
         value: ByteArray
     )
 
+    fun setNotificationsEnabled(
+        characteristicRef: BleCharacteristicRef,
+        enabled: Boolean,
+    )
+
     fun release()
 }

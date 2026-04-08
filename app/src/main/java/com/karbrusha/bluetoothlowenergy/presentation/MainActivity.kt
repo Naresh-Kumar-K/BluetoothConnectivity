@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.karbrusha.bluetoothlowenergy.presentation.components.BleDeviceDetailScreen
+import com.karbrusha.bluetoothlowenergy.presentation.components.BleLiveDataScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.BluetoothScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.BleScanConnectScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.SavedScreen
@@ -227,11 +228,38 @@ class MainActivity : ComponentActivity() {
                                 gattConnectionState = bleState.gattConnectionState,
                                 gattServices = bleState.gattServices,
                                 characteristicValues = bleState.characteristicValues,
+                                notifyingCharacteristics = bleState.gattConnectionState.notifyingCharacteristics,
                                 onBack = { navController.popBackStack() },
                                 onConnect = bleViewModel::connect,
                                 onDisconnect = bleViewModel::disconnect,
                                 onReadCharacteristic = bleViewModel::readCharacteristic,
                                 onWriteCharacteristicHex = bleViewModel::writeCharacteristicHex,
+                                onSetNotificationsEnabled = bleViewModel::setNotificationsEnabled,
+                                onOpenLiveData = {
+                                    navController.navigate(AppRoutes.bleLiveDataRoute(device.address))
+                                },
+                            )
+                        }
+
+                        composable(
+                            route = "${AppRoutes.BleLiveData}/{${AppRoutes.ArgDeviceAddress}}",
+                            arguments = listOf(
+                                navArgument(AppRoutes.ArgDeviceAddress) { type = NavType.StringType },
+                            ),
+                        ) { entry ->
+                            val address = entry.arguments?.getString(AppRoutes.ArgDeviceAddress).orEmpty()
+                            val device =
+                                bleState.bleScannedDevices.firstOrNull { it.device.address == address }?.device
+                                    ?: bleState.gattConnectionState.connectedDevice
+                                    ?: return@composable
+
+                            BleLiveDataScreen(
+                                deviceName = device.name ?: "Unknown Device",
+                                gattConnectionState = bleState.gattConnectionState,
+                                services = bleState.gattServices,
+                                characteristicValues = bleState.characteristicValues,
+                                notifyingCharacteristics = bleState.gattConnectionState.notifyingCharacteristics,
+                                onSetNotificationsEnabled = bleViewModel::setNotificationsEnabled,
                             )
                         }
                     }

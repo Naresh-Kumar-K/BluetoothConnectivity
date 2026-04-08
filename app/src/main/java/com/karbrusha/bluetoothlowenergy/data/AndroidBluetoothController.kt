@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothManager
@@ -36,6 +37,13 @@ import java.util.UUID
 class AndroidBluetoothController(
     private val context: Context,
 ) : BluetoothController {
+
+    private companion object {
+        private const val TAG = "AndroidBluetoothController"
+        private const val LOG_MAX_BYTES = 64
+    }
+
+    private val cccdUuid: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
     private val bluetoothManager by lazy {
         context.getSystemService(BluetoothManager::class.java) }
@@ -88,7 +96,7 @@ class AndroidBluetoothController(
 
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    Log.d("AndroidBluetoothController", "GATT connected device=$address status=$status")
+                    Log.d(TAG, "GATT connected device=$address status=$status")
                     val deviceDomain = address?.let { addr ->
                         bluetoothAdapter?.getRemoteDevice(addr)?.toBluetoothDeviceDomain()
                     }
@@ -105,7 +113,7 @@ class AndroidBluetoothController(
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
-                    Log.d("AndroidBluetoothController", "GATT disconnected device=$address status=$status")
+                    Log.d(TAG, "GATT disconnected device=$address status=$status")
                     _gattConnectionState.update {
                         it.copy(
                             status = GattConnectionStatus.Disconnected,
@@ -137,6 +145,7 @@ class AndroidBluetoothController(
             }
 
             val services = gatt.services?.map { it.toBleService() }.orEmpty()
+            Log.d(TAG, "Services discovered count=${services.size}")
             _gattConnectionState.update { it.copy(status = GattConnectionStatus.Connected, services = services) }
         }
 
@@ -164,6 +173,10 @@ class AndroidBluetoothController(
                 characteristicUuid = characteristic.uuid.toString(),
             )
 
+            Log.d(
+                TAG,
+                "READ ${shortUuid(serviceUuid)}/${shortUuid(characteristic.uuid.toString())} bytes=${value.size} hex=${value.toHexTruncated()}",
+            )
             _gattConnectionState.update { state ->
                 state.copy(
                     status = GattConnectionStatus.Connected,
@@ -171,6 +184,23 @@ class AndroidBluetoothController(
                     characteristicValues = state.characteristicValues + (ref to value.copyOf()),
                 )
             }
+        }
+
+        @Deprecated("Use onCharacteristicChanged(gatt, characteristic, value) on newer APIs")
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+        ) {
+            val value = characteristic.value ?: return
+            handleCharacteristicUpdate(gatt = gatt, characteristic = characteristic, value = value)
+        }
+
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+        ) {
+            handleCharacteristicUpdate(gatt = gatt, characteristic = characteristic, value = value)
         }
 
         override fun onCharacteristicWrite(
@@ -197,6 +227,10 @@ class AndroidBluetoothController(
                 characteristicUuid = characteristic.uuid.toString(),
             )
 
+            Log.d(
+                TAG,
+                "WRITE ${shortUuid(serviceUuid)}/${shortUuid(characteristic.uuid.toString())} bytes=${value.size} hex=${value.toHexTruncated()}",
+            )
             _gattConnectionState.update { state ->
                 state.copy(
                     status = GattConnectionStatus.Connected,
@@ -204,6 +238,19 @@ class AndroidBluetoothController(
                     characteristicValues = state.characteristicValues + (ref to value.copyOf()),
                 )
             }
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int,
+        ) {
+            val charUuid = descriptor.characteristic?.uuid?.toString()
+            val value = descriptor.value
+            Log.d(
+                TAG,
+                "DESCRIPTOR_WRITE status=$status desc=${shortUuid(descriptor.uuid.toString())} char=${charUuid?.let { shortUuid(it) }} bytes=${value?.size ?: 0} hex=${value?.toHexTruncated()}",
+            )
         }
     }
 
@@ -477,6 +524,103 @@ class AndroidBluetoothController(
         gatt.writeCharacteristic(characteristic)
     }
 
+    override fun setNotificationsEnabled(characteristicRef: BleCharacteristicRef, enabled: Boolean) {
+        val gatt = bluetoothGatt ?: return
+        if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return
+
+        val service = try {
+            gatt.getService(UUID.fromString(characteristicRef.serviceUuid))
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        val characteristic = try {
+            service.getCharacteristic(UUID.fromString(characteristicRef.characteristicUuid))
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        val notifySetOk = try {
+            gatt.setCharacteristicNotification(characteristic, enabled)
+        } catch (_: Exception) {
+            false
+        }
+
+        if (!notifySetOk) {
+            _gattConnectionState.update { it.copy(errorMessage = "Failed to set notifications") }
+            return
+        }
+
+        val cccd = characteristic.getDescriptor(cccdUuid)
+        if (cccd == null) {
+            _gattConnectionState.update { it.copy(errorMessage = "Missing CCCD descriptor (0x2902)") }
+            return
+        }
+
+        val supportsIndicate =
+            characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0
+        val supportsNotify =
+            characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0
+
+        val value = when {
+            enabled && supportsIndicate && !supportsNotify -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            enabled -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            else -> BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+        }
+
+        Log.d(
+            TAG,
+            "CCCD ${if (enabled) "ENABLE" else "DISABLE"} ${shortUuid(characteristicRef.serviceUuid)}/${shortUuid(characteristicRef.characteristicUuid)} " +
+                "supportsNotify=$supportsNotify supportsIndicate=$supportsIndicate value=${value.toHexTruncated()}",
+        )
+        cccd.value = value
+        val wrote = try {
+            gatt.writeDescriptor(cccd)
+        } catch (_: Exception) {
+            false
+        }
+
+        if (!wrote) {
+            _gattConnectionState.update { it.copy(errorMessage = "Failed to write CCCD descriptor") }
+            return
+        }
+
+        _gattConnectionState.update { state ->
+            val updated = if (enabled) state.notifyingCharacteristics + characteristicRef
+            else state.notifyingCharacteristics - characteristicRef
+            state.copy(notifyingCharacteristics = updated, errorMessage = null)
+        }
+    }
+
+    private fun handleCharacteristicUpdate(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+    ) {
+        val serviceUuid = gatt.services
+            ?.firstOrNull { svc -> svc.getCharacteristic(characteristic.uuid) != null }
+            ?.uuid
+            ?.toString()
+            ?: return
+
+        val ref = BleCharacteristicRef(
+            serviceUuid = serviceUuid,
+            characteristicUuid = characteristic.uuid.toString(),
+        )
+
+        Log.d(
+            TAG,
+            "NOTIFY ${shortUuid(serviceUuid)}/${shortUuid(characteristic.uuid.toString())} bytes=${value.size} hex=${value.toHexTruncated()}",
+        )
+        _gattConnectionState.update { state ->
+            state.copy(
+                status = GattConnectionStatus.Connected,
+                errorMessage = null,
+                characteristicValues = state.characteristicValues + (ref to value.copyOf()),
+            )
+        }
+    }
+
     private fun BluetoothGattService.toBleService(): BleService {
         return BleService(
             uuid = uuid.toString(),
@@ -514,5 +658,15 @@ class AndroidBluetoothController(
 
     private fun hasPermission(permission: String): Boolean{
         return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun shortUuid(uuid: String): String {
+        return uuid.takeLast(4).uppercase()
+    }
+
+    private fun ByteArray.toHexTruncated(): String {
+        val sliced = if (size > LOG_MAX_BYTES) copyOfRange(0, LOG_MAX_BYTES) else this
+        val hex = sliced.joinToString("") { "%02X".format(it) }
+        return if (size > LOG_MAX_BYTES) "$hex…(+${size - LOG_MAX_BYTES}b)" else hex
     }
 }
