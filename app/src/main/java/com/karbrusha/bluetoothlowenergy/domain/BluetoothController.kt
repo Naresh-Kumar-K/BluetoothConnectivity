@@ -8,7 +8,7 @@ interface BluetoothController {
     val pairedDevice: StateFlow<List<BluetoothDeviceDomain>>
 
     // BLE scan state for the new scan/connect screen.
-    val bleScannedDevices: StateFlow<List<BluetoothDeviceDomain>>
+    val bleScannedDevices: StateFlow<List<BleScannedDevice>>
     val isBleScanning: StateFlow<Boolean>
 
     // Generic GATT explorer state.

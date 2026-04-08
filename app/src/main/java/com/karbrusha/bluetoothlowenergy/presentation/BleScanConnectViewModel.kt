@@ -7,14 +7,12 @@ import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristicRef
 import com.karbrusha.bluetoothlowenergy.domain.BluetoothController
 import com.karbrusha.bluetoothlowenergy.domain.BleService
 import com.karbrusha.bluetoothlowenergy.domain.GattConnectionState
+import com.karbrusha.bluetoothlowenergy.domain.BleScannedDevice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @HiltViewModel
 class BleScanConnectViewModel @Inject constructor(

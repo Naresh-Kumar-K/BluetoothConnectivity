@@ -2,11 +2,11 @@ package com.karbrusha.bluetoothlowenergy.presentation
 
 import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristicRef
 import com.karbrusha.bluetoothlowenergy.domain.BleService
-import com.karbrusha.bluetoothlowenergy.domain.BluetoothDeviceDomain
+import com.karbrusha.bluetoothlowenergy.domain.BleScannedDevice
 import com.karbrusha.bluetoothlowenergy.domain.GattConnectionState
 
 data class BleScanConnectUiState(
-    val bleScannedDevices: List<BluetoothDeviceDomain> = emptyList(),
+    val bleScannedDevices: List<BleScannedDevice> = emptyList(),
     val isBleScanning: Boolean = false,
 
     val gattConnectionState: GattConnectionState = GattConnectionState(),

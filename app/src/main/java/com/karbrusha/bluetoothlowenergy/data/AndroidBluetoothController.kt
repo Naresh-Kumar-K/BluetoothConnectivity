@@ -23,6 +23,7 @@ import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristic
 import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristicProperties
 import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristicRef
 import com.karbrusha.bluetoothlowenergy.domain.BleService
+import com.karbrusha.bluetoothlowenergy.domain.BleScannedDevice
 import com.karbrusha.bluetoothlowenergy.domain.GattConnectionState
 import com.karbrusha.bluetoothlowenergy.domain.GattConnectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,8 +52,8 @@ class AndroidBluetoothController(
     override val pairedDevice: StateFlow<List<BluetoothDeviceDomain>>
         get() = _pairedDevice.asStateFlow()
 
-    private val _bleScannedDevices = MutableStateFlow<List<BluetoothDeviceDomain>>(emptyList())
-    override val bleScannedDevices: StateFlow<List<BluetoothDeviceDomain>>
+    private val _bleScannedDevices = MutableStateFlow<List<BleScannedDevice>>(emptyList())
+    override val bleScannedDevices: StateFlow<List<BleScannedDevice>>
         get() = _bleScannedDevices.asStateFlow()
 
     private val _isBleScanning = MutableStateFlow(false)
@@ -233,7 +234,13 @@ class AndroidBluetoothController(
                 val device = result.device ?: return
                 val newDevice = device.toBluetoothDeviceDomain()
                 _bleScannedDevices.update { devices ->
-                    if (devices.any { it.address == newDevice.address }) devices else devices + newDevice
+                    val idx = devices.indexOfFirst { it.device.address == newDevice.address }
+                    val updated = BleScannedDevice(device = newDevice, rssi = result.rssi)
+                    if (idx == -1) {
+                        devices + updated
+                    } else {
+                        devices.toMutableList().also { it[idx] = updated }
+                    }
                 }
             }
 
