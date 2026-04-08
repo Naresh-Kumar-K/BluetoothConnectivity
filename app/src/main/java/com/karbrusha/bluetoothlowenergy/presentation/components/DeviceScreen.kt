@@ -28,7 +28,7 @@ fun BluetoothScreen(
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize()) {
         BluetoothDeviceList(
             pairedDevices = state.pairedDevices,
             scannedDevices = state.scannedDevices,

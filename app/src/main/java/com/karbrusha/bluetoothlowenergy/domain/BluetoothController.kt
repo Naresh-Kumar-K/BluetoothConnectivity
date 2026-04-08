@@ -7,6 +7,13 @@ interface BluetoothController {
     val scannedDevice: StateFlow<List<BluetoothDeviceDomain>>
     val pairedDevice: StateFlow<List<BluetoothDeviceDomain>>
 
+    // BLE scan state for the new scan/connect screen.
+    val bleScannedDevices: StateFlow<List<BluetoothDeviceDomain>>
+    val isBleScanning: StateFlow<Boolean>
+
+    // Generic GATT explorer state.
+    val gattConnectionState: StateFlow<GattConnectionState>
+
     fun startScan()
     fun stopScan()
 
@@ -18,6 +25,12 @@ interface BluetoothController {
 
     fun startDiscovery()
     fun stopDiscovery()
+
+    fun readCharacteristic(characteristicRef: BleCharacteristicRef)
+    fun writeCharacteristic(
+        characteristicRef: BleCharacteristicRef,
+        value: ByteArray
+    )
 
     fun release()
 }

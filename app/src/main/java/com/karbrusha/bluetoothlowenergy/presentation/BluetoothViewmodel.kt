@@ -33,4 +33,9 @@ class BluetoothViewmodel @Inject constructor(
     fun stopScan() {
         bluetoothController.stopDiscovery()
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        bluetoothController.release()
+    }
 }

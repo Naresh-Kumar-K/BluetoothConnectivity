@@ -3,16 +3,33 @@ package com.karbrusha.bluetoothlowenergy.data
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
+import android.util.Log
 import com.karbrusha.bluetoothlowenergy.domain.BluetoothController
 import com.karbrusha.bluetoothlowenergy.domain.BluetoothDeviceDomain
+import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristic
+import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristicProperties
+import com.karbrusha.bluetoothlowenergy.domain.BleCharacteristicRef
+import com.karbrusha.bluetoothlowenergy.domain.BleService
+import com.karbrusha.bluetoothlowenergy.domain.GattConnectionState
+import com.karbrusha.bluetoothlowenergy.domain.GattConnectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.UUID
 
 @SuppressLint("MissingPermission")
 class AndroidBluetoothController(
@@ -34,10 +51,158 @@ class AndroidBluetoothController(
     override val pairedDevice: StateFlow<List<BluetoothDeviceDomain>>
         get() = _pairedDevice.asStateFlow()
 
+    private val _bleScannedDevices = MutableStateFlow<List<BluetoothDeviceDomain>>(emptyList())
+    override val bleScannedDevices: StateFlow<List<BluetoothDeviceDomain>>
+        get() = _bleScannedDevices.asStateFlow()
+
+    private val _isBleScanning = MutableStateFlow(false)
+    override val isBleScanning: StateFlow<Boolean>
+        get() = _isBleScanning.asStateFlow()
+
+    private val _gattConnectionState = MutableStateFlow(GattConnectionState())
+    override val gattConnectionState: StateFlow<GattConnectionState>
+        get() = _gattConnectionState.asStateFlow()
+
     private val foundDeviceReceiver = FoundDeviceReceiver{device ->
         _scannedDevice.update { devices ->
             val newDevice = device.toBluetoothDeviceDomain()
             if(newDevice in devices) devices else devices +newDevice
+        }
+    }
+
+    private var isClassicReceiverRegistered: Boolean = false
+
+    private var bluetoothLeScanner: BluetoothLeScanner? = null
+    private var scanCallback: ScanCallback? = null
+
+    private var bluetoothGatt: BluetoothGatt? = null
+
+    private val gattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(
+            gatt: BluetoothGatt,
+            status: Int,
+            newState: Int,
+        ) {
+            val address = gatt.device?.address
+
+            when (newState) {
+                BluetoothProfile.STATE_CONNECTED -> {
+                    Log.d("AndroidBluetoothController", "GATT connected device=$address status=$status")
+                    val deviceDomain = address?.let { addr ->
+                        bluetoothAdapter?.getRemoteDevice(addr)?.toBluetoothDeviceDomain()
+                    }
+                    _gattConnectionState.update {
+                        it.copy(
+                            status = GattConnectionStatus.Connected,
+                            connectedDevice = deviceDomain,
+                            services = emptyList(),
+                            characteristicValues = emptyMap(),
+                            errorMessage = null,
+                        )
+                    }
+                    gatt.discoverServices()
+                }
+
+                BluetoothProfile.STATE_DISCONNECTED -> {
+                    Log.d("AndroidBluetoothController", "GATT disconnected device=$address status=$status")
+                    _gattConnectionState.update {
+                        it.copy(
+                            status = GattConnectionStatus.Disconnected,
+                            connectedDevice = null,
+                            services = emptyList(),
+                            characteristicValues = emptyMap(),
+                            errorMessage = null,
+                        )
+                    }
+                }
+
+                BluetoothProfile.STATE_DISCONNECTING -> {
+                    _gattConnectionState.update { it.copy(status = GattConnectionStatus.Disconnecting) }
+                }
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                _gattConnectionState.update {
+                    it.copy(
+                        status = GattConnectionStatus.Error,
+                        errorMessage = "Services discovery failed: $status",
+                        services = emptyList(),
+                        characteristicValues = emptyMap(),
+                    )
+                }
+                return
+            }
+
+            val services = gatt.services?.map { it.toBleService() }.orEmpty()
+            _gattConnectionState.update { it.copy(status = GattConnectionStatus.Connected, services = services) }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int,
+        ) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                _gattConnectionState.update {
+                    it.copy(status = GattConnectionStatus.Error, errorMessage = "Characteristic read failed: $status")
+                }
+                return
+            }
+
+            val value = characteristic.value ?: return
+            val serviceUuid = gatt.services
+                ?.firstOrNull { svc -> svc.getCharacteristic(characteristic.uuid) != null }
+                ?.uuid
+                ?.toString()
+                ?: return
+
+            val ref = BleCharacteristicRef(
+                serviceUuid = serviceUuid,
+                characteristicUuid = characteristic.uuid.toString(),
+            )
+
+            _gattConnectionState.update { state ->
+                state.copy(
+                    status = GattConnectionStatus.Connected,
+                    errorMessage = null,
+                    characteristicValues = state.characteristicValues + (ref to value.copyOf()),
+                )
+            }
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int,
+        ) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                _gattConnectionState.update {
+                    it.copy(status = GattConnectionStatus.Error, errorMessage = "Characteristic write failed: $status")
+                }
+                return
+            }
+
+            val value = characteristic.value ?: return
+            val serviceUuid = gatt.services
+                ?.firstOrNull { svc -> svc.getCharacteristic(characteristic.uuid) != null }
+                ?.uuid
+                ?.toString()
+                ?: return
+
+            val ref = BleCharacteristicRef(
+                serviceUuid = serviceUuid,
+                characteristicUuid = characteristic.uuid.toString(),
+            )
+
+            _gattConnectionState.update { state ->
+                state.copy(
+                    status = GattConnectionStatus.Connected,
+                    errorMessage = null,
+                    characteristicValues = state.characteristicValues + (ref to value.copyOf()),
+                )
+            }
         }
     }
 
@@ -46,18 +211,141 @@ class AndroidBluetoothController(
     }
 
     override fun startScan() {
+        if (!hasPermission(Manifest.permission.BLUETOOTH_SCAN)) return
+        if (_isBleScanning.value) return
+
+        bluetoothLeScanner = bluetoothAdapter?.bluetoothLeScanner
+        val scanner = bluetoothLeScanner ?: return
+
+        _bleScannedDevices.update { emptyList() }
+        _gattConnectionState.update {
+            it.copy(
+                status = GattConnectionStatus.Disconnected,
+                connectedDevice = null,
+                services = emptyList(),
+                characteristicValues = emptyMap(),
+                errorMessage = null,
+            )
+        }
+
+        val callback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                val device = result.device ?: return
+                val newDevice = device.toBluetoothDeviceDomain()
+                _bleScannedDevices.update { devices ->
+                    if (devices.any { it.address == newDevice.address }) devices else devices + newDevice
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.w("AndroidBluetoothController", "BLE scan failed: $errorCode")
+                _gattConnectionState.update {
+                    it.copy(status = GattConnectionStatus.Error, errorMessage = "BLE scan failed: $errorCode")
+                }
+            }
+        }
+
+        scanCallback = callback
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        // Some Android API levels require the (filters, settings, callback) overload.
+        scanner.startScan(mutableListOf(), settings, callback)
+        _isBleScanning.update { true }
     }
 
     override fun stopScan() {
-        TODO("Not yet implemented")
+        val scanner = bluetoothLeScanner ?: return
+        val callback = scanCallback ?: return
+        if (!_isBleScanning.value) return
+
+        try {
+            scanner.stopScan(callback)
+        } catch (_: Exception) {
+            // Ignore: stopping scan can throw if the system already stopped it.
+        } finally {
+            scanCallback = null
+            _isBleScanning.update { false }
+        }
     }
 
     override fun connect(device: BluetoothDeviceDomain) {
-        TODO("Not yet implemented")
+        if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
+            _gattConnectionState.update {
+                it.copy(status = GattConnectionStatus.Error, errorMessage = "Missing BLUETOOTH_CONNECT permission")
+            }
+            return
+        }
+
+        val adapter = bluetoothAdapter ?: return
+        val remoteDevice = try {
+            adapter.getRemoteDevice(device.address)
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        // Keep only one connection at a time to simplify state.
+        bluetoothGatt?.let { oldGatt ->
+            try {
+                oldGatt.disconnect()
+            } catch (_: Exception) {
+                // ignore
+            }
+            try {
+                oldGatt.close()
+            } catch (_: Exception) {
+                // ignore
+            }
+        }
+
+        bluetoothGatt = null
+
+        _gattConnectionState.update {
+            it.copy(
+                status = GattConnectionStatus.Connecting,
+                connectedDevice = device,
+                services = emptyList(),
+                characteristicValues = emptyMap(),
+                errorMessage = null,
+            )
+        }
+
+        bluetoothGatt = remoteDevice.connectGatt(context, false, gattCallback)
     }
 
     override fun disconnect(device: BluetoothDeviceDomain) {
-        TODO("Not yet implemented")
+        if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return
+
+        val current = _gattConnectionState.value.connectedDevice
+        if (current?.address != device.address) return
+
+        _gattConnectionState.update { it.copy(status = GattConnectionStatus.Disconnecting, errorMessage = null) }
+
+        val gatt = bluetoothGatt ?: return
+        try {
+            gatt.disconnect()
+        } catch (_: Exception) {
+            // ignore
+        } finally {
+            try {
+                gatt.close()
+            } catch (_: Exception) {
+                // ignore
+            }
+            bluetoothGatt = null
+        }
+
+        _gattConnectionState.update {
+            it.copy(
+                status = GattConnectionStatus.Disconnected,
+                connectedDevice = null,
+                services = emptyList(),
+                characteristicValues = emptyMap(),
+                errorMessage = null,
+            )
+        }
     }
 
     override fun pair(device: BluetoothDeviceDomain) {
@@ -72,24 +360,133 @@ class AndroidBluetoothController(
         if(!hasPermission(Manifest.permission.BLUETOOTH_SCAN)){
             return
         }
-        context.registerReceiver(
-            foundDeviceReceiver,
-            IntentFilter(BluetoothDevice.ACTION_FOUND)
-        )
+        if (!isClassicReceiverRegistered) {
+            context.registerReceiver(
+                foundDeviceReceiver,
+                IntentFilter(BluetoothDevice.ACTION_FOUND)
+            )
+            isClassicReceiverRegistered = true
+        }
         updatePairedDevice()
         bluetoothAdapter?.startDiscovery()
 
     }
 
     override fun stopDiscovery() {
-        if(!hasPermission(Manifest.permission.BLUETOOTH_SCAN)){
-            return
+        // Cancelling discovery requires BLUETOOTH_SCAN; receiver cleanup does not.
+        if (hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
+            bluetoothAdapter?.cancelDiscovery()
         }
-        bluetoothAdapter?.cancelDiscovery()
+
+        if (isClassicReceiverRegistered) {
+            try {
+                context.unregisterReceiver(foundDeviceReceiver)
+            } catch (_: IllegalArgumentException) {
+                // Ignore: receiver might already be unregistered.
+            } finally {
+                isClassicReceiverRegistered = false
+            }
+        }
     }
 
     override fun release() {
-       context.unregisterReceiver(foundDeviceReceiver)
+        if (_isBleScanning.value) stopScan()
+
+        bluetoothGatt?.let { gatt ->
+            try {
+                gatt.disconnect()
+            } catch (_: Exception) {
+                // ignore
+            }
+            try {
+                gatt.close()
+            } catch (_: Exception) {
+                // ignore
+            }
+        }
+        bluetoothGatt = null
+
+        if (isClassicReceiverRegistered) {
+            try {
+                context.unregisterReceiver(foundDeviceReceiver)
+            } catch (_: IllegalArgumentException) {
+                // ignore
+            } finally {
+                isClassicReceiverRegistered = false
+            }
+        }
+    }
+
+    override fun readCharacteristic(characteristicRef: BleCharacteristicRef) {
+        val gatt = bluetoothGatt ?: return
+        if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return
+
+        val service = try {
+            gatt.getService(UUID.fromString(characteristicRef.serviceUuid))
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        val characteristic = try {
+            service.getCharacteristic(UUID.fromString(characteristicRef.characteristicUuid))
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        gatt.readCharacteristic(characteristic)
+    }
+
+    override fun writeCharacteristic(characteristicRef: BleCharacteristicRef, value: ByteArray) {
+        val gatt = bluetoothGatt ?: return
+        if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) return
+
+        val service = try {
+            gatt.getService(UUID.fromString(characteristicRef.serviceUuid))
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        val characteristic = try {
+            service.getCharacteristic(UUID.fromString(characteristicRef.characteristicUuid))
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        characteristic.value = value
+
+        // Choose the most compatible write type based on supported properties.
+        val canWriteNoResponse =
+            characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
+        val canWriteDefault = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
+        characteristic.writeType = when {
+            canWriteNoResponse && !canWriteDefault -> BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            else -> BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        }
+
+        gatt.writeCharacteristic(characteristic)
+    }
+
+    private fun BluetoothGattService.toBleService(): BleService {
+        return BleService(
+            uuid = uuid.toString(),
+            characteristics = characteristics.map { characteristic ->
+                val properties = BleCharacteristicProperties(
+                    readable = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0,
+                    writable =
+                        characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0 ||
+                            characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0,
+                    writeWithoutResponse =
+                        characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0,
+                    notifiable = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0,
+                    indicatable = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0,
+                )
+
+                BleCharacteristic(
+                    uuid = characteristic.uuid.toString(),
+                    properties = properties,
+                )
+            },
+        )
     }
 
     private fun updatePairedDevice() {
