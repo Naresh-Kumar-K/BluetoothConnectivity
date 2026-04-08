@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -187,17 +187,21 @@ fun BleDeviceDetailScreen(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = { onDisconnect(device) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp),
+                                .height(56.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary,
                             ),
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.Bluetooth,
+                                contentDescription = null,
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(text = "Disconnect Device", fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -250,10 +254,10 @@ private fun HeaderCard(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
+                        imageVector = Icons.Default.Circle,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(10.dp),
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -424,13 +428,14 @@ private fun ServiceCard(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
+                                val friendlyValue = decodeCharacteristicValue(characteristic.uuid.toString(), lastValue)
                                 Text(
                                     text = friendlyCharacteristicName(characteristic.uuid.toString()),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                 )
                                 Text(
-                                    text = lastValue?.toHex() ?: "-",
+                                    text = friendlyValue ?: (lastValue?.toHex() ?: "-"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 2.dp),
@@ -483,6 +488,19 @@ private fun friendlyCharacteristicName(uuid: String): String {
         uuid.endsWith("2A37", ignoreCase = true) -> "Heart Rate Measurement"
         uuid.endsWith("2A29", ignoreCase = true) -> "Manufacturer Name"
         else -> "Characteristic"
+    }
+}
+
+private fun decodeCharacteristicValue(uuid: String, value: ByteArray?): String? {
+    if (value == null || value.isEmpty()) return null
+    return when {
+        // Battery Level characteristic is a single uint8 percent.
+        uuid.endsWith("2A19", ignoreCase = true) -> {
+            val pct = value[0].toInt() and 0xFF
+            "($pct%)"
+        }
+
+        else -> null
     }
 }
 

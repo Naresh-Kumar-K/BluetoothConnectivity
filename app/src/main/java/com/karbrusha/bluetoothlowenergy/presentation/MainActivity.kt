@@ -96,7 +96,6 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = backStackEntry?.destination
-
                 val isBleDetail = currentDestination?.route?.startsWith(AppRoutes.BleDetail) == true
 
                 Scaffold(
@@ -147,33 +146,30 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Hide bottom bar on detail screen to match the screenshot.
-                        if (!isBleDetail) {
-                            NavigationBar(
-                                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
-                            ) {
-                                items.forEach { item ->
-                                    val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
-                                    NavigationBarItem(
-                                        selected = selected,
-                                        onClick = {
-                                            navController.navigate(item.route) {
-                                                popUpTo(navController.graph.startDestinationId) {
-                                                    saveState = true
-                                                }
-                                                launchSingleTop = true
-                                                restoreState = true
+                        NavigationBar(
+                            modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+                        ) {
+                            items.forEach { item ->
+                                val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = {
+                                        navController.navigate(item.route) {
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                saveState = true
                                             }
-                                        },
-                                        icon = {
-                                            Icon(
-                                                imageVector = item.icon,
-                                                contentDescription = item.label,
-                                            )
-                                        },
-                                        label = { Text(text = item.label) },
-                                    )
-                                }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    icon = {
+                                        Icon(
+                                            imageVector = item.icon,
+                                            contentDescription = item.label,
+                                        )
+                                    },
+                                    label = { Text(text = item.label) },
+                                )
                             }
                         }
                     }
