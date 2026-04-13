@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -25,14 +27,23 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -53,19 +64,25 @@ fun BleScanConnectScreen(
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
     onClear: () -> Unit,
+    onToggleFilter: () -> Unit,
     onConnect: (BluetoothDeviceDomain) -> Unit,
     onDisconnect: (BluetoothDeviceDomain) -> Unit,
     onReadCharacteristic: (BleCharacteristicRef) -> Unit,
     onWriteCharacteristicHex: (BleCharacteristicRef, String) -> Unit,
     onOpenDetails: (BluetoothDeviceDomain) -> Unit,
+    onToggleSave: (BluetoothDeviceDomain) -> Unit,
 ) {
     val bg = MaterialTheme.colorScheme.background
     val hero = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-            bg,
-        ),
+            bg
+        )
     )
+
+    // rememberSaveable survives rapid recompositions during active BLE scanning
+//    var showFilterMenu by rememberSaveable { mutableStateOf(false) }
+    var showFilterMenu by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -73,6 +90,11 @@ fun BleScanConnectScreen(
             .background(hero),
     ) {
         val connectedDevice = state.gattConnectionState.connectedDevice
+        val visibleDevices = if (state.filterUnnamed) {
+            state.bleScannedDevices.filter { !it.device.name.isNullOrBlank() && it.device.name != "Unknown Device" }
+        } else {
+            state.bleScannedDevices
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -92,7 +114,9 @@ fun BleScanConnectScreen(
                     ConnectedDeviceCard(
                         deviceName = connectedDevice.name ?: "Unknown Device",
                         deviceAddress = connectedDevice.address,
+                        isSaved = connectedDevice.address in state.savedAddresses,
                         onOpenDetails = { onOpenDetails(connectedDevice) },
+                        onToggleSave = { onToggleSave(connectedDevice) },
                     )
                 }
             }
@@ -121,7 +145,7 @@ fun BleScanConnectScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "AVAILABLE DEVICES (${state.bleScannedDevices.size})",
+                        text = "AVAILABLE DEVICES (${visibleDevices.size})",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -137,25 +161,68 @@ fun BleScanConnectScreen(
                             Text(text = "Clear", fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(modifier = Modifier.width(10.dp))
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Filter",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Box {
+                            IconButton(onClick = { showFilterMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Filter options",
+                                    tint = if (state.filterUnnamed)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showFilterMenu,
+                                onDismissRequest = { showFilterMenu = false },
+                            ) {
+                                Text(
+                                    text = "Filter",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(
+                                        horizontal = 16.dp,
+                                        vertical = 8.dp
+                                    ),
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Checkbox(
+                                                checked = state.filterUnnamed,
+                                                onCheckedChange = null,
+                                            )
+                                            Text(text = "Named devices only")
+                                        }
+                                    },
+                                    onClick = {
+                                        onToggleFilter()
+                                        showFilterMenu = false
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            items(state.bleScannedDevices, key = { it.device.address }) { scanned ->
+            items(visibleDevices, key = { it.device.address }) { scanned ->
                 // If we're connected to this device, it's already shown as "Connected device" card above.
                 if (connectedDevice?.address == scanned.device.address) return@items
 
                 DeviceCard(
                     scanned = scanned,
                     isConnected = connectedDevice?.address == scanned.device.address,
+                    isSaved = scanned.device.address in state.savedAddresses,
                     onConnect = onConnect,
                     onDisconnect = onDisconnect,
                     onOpenDetails = onOpenDetails,
+                    onToggleSave = onToggleSave,
                 )
             }
         }
@@ -254,7 +321,9 @@ private fun HeroHeader(
 private fun ConnectedDeviceCard(
     deviceName: String,
     deviceAddress: String,
+    isSaved: Boolean,
     onOpenDetails: () -> Unit,
+    onToggleSave: () -> Unit,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -303,6 +372,13 @@ private fun ConnectedDeviceCard(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onToggleSave) {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = if (isSaved) "Remove from saved" else "Save device",
+                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = null,
@@ -318,7 +394,7 @@ private fun ConnectedDeviceCard(
             }
         }
 
-        Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -338,14 +414,19 @@ private fun ConnectedDeviceCard(
 private fun DeviceCard(
     scanned: BleScannedDevice,
     isConnected: Boolean,
+    isSaved: Boolean,
     onConnect: (BluetoothDeviceDomain) -> Unit,
     onDisconnect: (BluetoothDeviceDomain) -> Unit,
     onOpenDetails: (BluetoothDeviceDomain) -> Unit,
+    onToggleSave: (BluetoothDeviceDomain) -> Unit,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isSaved)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surface,
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
         onClick = { onOpenDetails(scanned.device) },
@@ -375,7 +456,10 @@ private fun DeviceCard(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Text(
                         text = scanned.device.name ?: "Unknown Device",
                         style = MaterialTheme.typography.titleMedium,
@@ -391,6 +475,13 @@ private fun DeviceCard(
             }
 
             Column(horizontalAlignment = Alignment.End) {
+                IconButton(onClick = { onToggleSave(scanned.device) }) {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = if (isSaved) "Remove from saved" else "Save device",
+                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 RssiBars(rssi = scanned.rssi)
                 Text(
                     text = scanned.rssi?.let { "${it} dBm" } ?: "-- dBm",
@@ -401,13 +492,21 @@ private fun DeviceCard(
             }
         }
 
-        Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (isSaved) {
+                FilledTonalButton(
+                    onClick = { onConnect(scanned.device) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(text = "Quick Connect")
+                }
+            }
             FilledTonalButton(
                 onClick = { if (isConnected) onDisconnect(scanned.device) else onConnect(scanned.device) },
                 modifier = Modifier.weight(1f),
@@ -430,7 +529,8 @@ private fun RssiBars(rssi: Int?) {
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
         repeat(5) { index ->
             val active = index < strength
-            val barColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+            val barColor =
+                if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
             Box(
                 modifier = Modifier
                     .width(4.dp)

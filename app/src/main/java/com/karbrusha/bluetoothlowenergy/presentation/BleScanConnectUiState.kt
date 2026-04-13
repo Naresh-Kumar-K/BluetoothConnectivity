@@ -8,11 +8,12 @@ import com.karbrusha.bluetoothlowenergy.domain.GattConnectionState
 data class BleScanConnectUiState(
     val bleScannedDevices: List<BleScannedDevice> = emptyList(),
     val isBleScanning: Boolean = false,
+    val filterUnnamed: Boolean = false,
+    val savedAddresses: Set<String> = emptySet(),
 
     val gattConnectionState: GattConnectionState = GattConnectionState(),
     val lastErrorMessage: String? = null,
 
-    // UI-friendly mirror (the UI displays values in hex).
     val characteristicValues: Map<BleCharacteristicRef, ByteArray> = emptyMap(),
     val gattServices: List<BleService> = emptyList(),
 )

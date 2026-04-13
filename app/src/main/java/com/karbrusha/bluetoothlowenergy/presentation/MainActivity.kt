@@ -37,10 +37,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.karbrusha.bluetoothlowenergy.domain.DeviceType
+import com.karbrusha.bluetoothlowenergy.domain.resolveDeviceType
 import com.karbrusha.bluetoothlowenergy.presentation.components.BleDeviceDetailScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.BleLiveDataScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.BluetoothScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.BleScanConnectScreen
+import com.karbrusha.bluetoothlowenergy.presentation.components.OximeterDetailScreen
 import com.karbrusha.bluetoothlowenergy.presentation.components.SavedScreen
 import com.karbrusha.bluetoothlowenergy.presentation.navigation.AppRoutes
 import com.karbrusha.bluetoothlowenergy.ui.theme.BluetoothLowEnergyTheme
@@ -92,9 +95,11 @@ class MainActivity : ComponentActivity() {
             BluetoothLowEnergyTheme {
                 val classicViewModel = hiltViewModel<BluetoothViewmodel>()
                 val bleViewModel = hiltViewModel<BleScanConnectViewModel>()
+                val savedViewModel = hiltViewModel<SavedDevicesViewModel>()
 
                 val classicState by classicViewModel.state.collectAsState()
                 val bleState by bleViewModel.uiState.collectAsState()
+                val savedState by savedViewModel.uiState.collectAsState()
                 val isBluetoothEnabled by classicViewModel.isBluetoothEnabled.collectAsState()
 
                 // Show dialog whenever Bluetooth is turned off
@@ -153,11 +158,11 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         val items = remember {
                             listOf(
-                                BottomNavItem(
-                                    route = AppRoutes.Classic,
-                                    label = "Classic",
-                                    icon = Icons.Default.Waves,
-                                ),
+//                                BottomNavItem(
+//                                    route = AppRoutes.Classic,
+//                                    label = "Classic",
+//                                    icon = Icons.Default.Waves,
+//                                ),
                                 BottomNavItem(
                                     route = AppRoutes.Ble,
                                     label = "BLE",
@@ -201,7 +206,7 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = AppRoutes.Classic,
+                        startDestination = AppRoutes.Ble,
                         modifier = Modifier
                             .padding(innerPadding)
                             .padding(horizontal = 12.dp),
@@ -221,6 +226,7 @@ class MainActivity : ComponentActivity() {
                                 onStartScan = bleViewModel::startScan,
                                 onStopScan = bleViewModel::stopScan,
                                 onClear = bleViewModel::clearScanResults,
+                                onToggleFilter = bleViewModel::toggleFilterUnnamed,
                                 onConnect = bleViewModel::connect,
                                 onDisconnect = bleViewModel::disconnect,
                                 onReadCharacteristic = bleViewModel::readCharacteristic,
@@ -228,11 +234,15 @@ class MainActivity : ComponentActivity() {
                                 onOpenDetails = { device ->
                                     navController.navigate(AppRoutes.bleDetailRoute(device.address))
                                 },
+                                onToggleSave = bleViewModel::toggleSave,
                             )
                         }
 
                         composable(AppRoutes.Saved) {
-                            SavedScreen()
+                            SavedScreen(
+                                state = savedState,
+                                onRemoveDevice = savedViewModel::removeDevice,
+                            )
                         }
 
                         composable(
@@ -247,22 +257,37 @@ class MainActivity : ComponentActivity() {
                                     ?: bleState.gattConnectionState.connectedDevice
                                     ?: return@composable
 
-                            BleDeviceDetailScreen(
-                                device = device,
-                                gattConnectionState = bleState.gattConnectionState,
-                                gattServices = bleState.gattServices,
-                                characteristicValues = bleState.characteristicValues,
-                                notifyingCharacteristics = bleState.gattConnectionState.notifyingCharacteristics,
-                                onBack = { navController.popBackStack() },
-                                onConnect = bleViewModel::connect,
-                                onDisconnect = bleViewModel::disconnect,
-                                onReadCharacteristic = bleViewModel::readCharacteristic,
-                                onWriteCharacteristicHex = bleViewModel::writeCharacteristicHex,
-                                onSetNotificationsEnabled = bleViewModel::setNotificationsEnabled,
-                                onOpenLiveData = {
-                                    navController.navigate(AppRoutes.bleLiveDataRoute(device.address))
-                                },
-                            )
+                            val deviceType = device.resolveDeviceType()
+
+                            when (deviceType) {
+                                DeviceType.Oximeter -> OximeterDetailScreen(
+                                    device = device,
+                                    gattConnectionState = bleState.gattConnectionState,
+                                    gattServices = bleState.gattServices,
+                                    characteristicValues = bleState.characteristicValues,
+                                    notifyingCharacteristics = bleState.gattConnectionState.notifyingCharacteristics,
+                                    onConnect = bleViewModel::connect,
+                                    onDisconnect = bleViewModel::disconnect,
+                                    onReadCharacteristic = bleViewModel::readCharacteristic,
+                                    onSetNotificationsEnabled = bleViewModel::setNotificationsEnabled,
+                                )
+                                else -> BleDeviceDetailScreen(
+                                    device = device,
+                                    gattConnectionState = bleState.gattConnectionState,
+                                    gattServices = bleState.gattServices,
+                                    characteristicValues = bleState.characteristicValues,
+                                    notifyingCharacteristics = bleState.gattConnectionState.notifyingCharacteristics,
+                                    onBack = { navController.popBackStack() },
+                                    onConnect = bleViewModel::connect,
+                                    onDisconnect = bleViewModel::disconnect,
+                                    onReadCharacteristic = bleViewModel::readCharacteristic,
+                                    onWriteCharacteristicHex = bleViewModel::writeCharacteristicHex,
+                                    onSetNotificationsEnabled = bleViewModel::setNotificationsEnabled,
+                                    onOpenLiveData = {
+                                        navController.navigate(AppRoutes.bleLiveDataRoute(device.address))
+                                    },
+                                )
+                            }
                         }
 
                         composable(
