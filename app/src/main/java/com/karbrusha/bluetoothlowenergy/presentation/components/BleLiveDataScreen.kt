@@ -139,6 +139,10 @@ fun BleLiveDataScreen(
                             .firstOrNull()
                             ?: characteristicValues.entries
                                 .asSequence()
+                                .mapNotNull { (_, bytes) -> bytes.decodeMyOximeterWaveOrNull() }
+                                .firstOrNull()
+                            ?: characteristicValues.entries
+                                .asSequence()
                                 .filter { (ref, _) -> notifyingCharacteristics.contains(ref) }
                                 .map { (_, bytes) -> "Raw: ${bytes.toHex()}" }
                                 .firstOrNull()
@@ -241,11 +245,26 @@ private fun ByteArray.decodeMyOximeterFrameOrNull(): String? {
 
     if (bpm == null && spo2 == null) return null
 
+    // Observed from real device logs:
+    // Example: 81 5F 63 1B -> SpO2=99 (0x63) and BPM tends to match (byte1 - 1) = 94.
+    val bpmAdjusted = bpm?.let { (it - 1).coerceAtLeast(0) }
+
     val parts = buildList {
         spo2?.let { add("SpO₂: $it%") }
-        bpm?.let { add("BPM: $it") }
+        bpmAdjusted?.let { add("BPM: $it") }
     }.joinToString(separator = "   ")
 
     return parts
+}
+
+private fun ByteArray.decodeMyOximeterWaveOrNull(): String? {
+    // Observed from real device logs:
+    // 0x80 + 10 bytes of samples (pleth-like waveform)
+    val header = firstOrNull()?.toInt()?.and(0xFF) ?: return null
+    if (header != 0x80) return null
+    if (size < 3) return null
+
+    val samples = drop(1).map { it.toInt() and 0xFF }
+    return "Wave: ${samples.joinToString(prefix = "[", postfix = "]")}"
 }
 

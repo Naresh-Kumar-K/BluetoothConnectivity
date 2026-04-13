@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -93,6 +95,28 @@ class MainActivity : ComponentActivity() {
 
                 val classicState by classicViewModel.state.collectAsState()
                 val bleState by bleViewModel.uiState.collectAsState()
+                val isBluetoothEnabled by classicViewModel.isBluetoothEnabled.collectAsState()
+
+                // Show dialog whenever Bluetooth is turned off
+                if (!isBluetoothEnabled) {
+                    AlertDialog(
+                        onDismissRequest = {},
+                        title = { Text("Bluetooth is Off") },
+                        text = { Text("Bluetooth has been turned off. Please enable it to continue using this app.") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    enableBluetoothLauncher.launch(
+                                        Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                                    )
+                                }
+                            ) {
+                                Text("Turn On")
+                            }
+                        },
+                        dismissButton = null,
+                    )
+                }
 
                 val navController = rememberNavController()
                 val backStackEntry by navController.currentBackStackEntryAsState()
@@ -105,7 +129,7 @@ class MainActivity : ComponentActivity() {
                         .windowInsetsPadding(WindowInsets.safeDrawing),
                     topBar = {
                         CenterAlignedTopAppBar(
-                            title = { Text(text = "ETHER CONNECT") },
+                            title = { Text(text = "DEVICE CONNECT") },
                             navigationIcon = {
                                 if (isBleDetail) {
                                     IconButton(onClick = { navController.popBackStack() }) {

@@ -12,6 +12,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
@@ -37,6 +41,19 @@ class BleScanConnectViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = BleScanConnectUiState(),
     )
+
+    init {
+        // When Bluetooth transitions from OFF → ON, clear stale results and restart scan.
+        bluetoothController.isBluetoothEnabled
+            .drop(1) // skip the initial replay value; only react to actual OFF→ON transitions
+            .filter { isEnabled -> isEnabled }
+            .onEach {
+                bluetoothController.stopScan()
+                bluetoothController.clearBleScannedDevices()
+                bluetoothController.startScan()
+            }
+            .launchIn(viewModelScope)
+    }
 
     fun startScan() {
         bluetoothController.startScan()

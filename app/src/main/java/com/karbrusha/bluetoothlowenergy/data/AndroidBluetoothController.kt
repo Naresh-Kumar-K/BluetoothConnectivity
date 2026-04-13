@@ -2,6 +2,7 @@ package com.karbrusha.bluetoothlowenergy.data
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -10,7 +11,9 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.bluetooth.le.BluetoothLeScanner
@@ -50,6 +53,17 @@ class AndroidBluetoothController(
 
     private val bluetoothAdapter by lazy {
         bluetoothManager?.adapter
+    }
+
+    private val _isBluetoothEnabled = MutableStateFlow(bluetoothAdapter?.isEnabled == true)
+    override val isBluetoothEnabled: StateFlow<Boolean> get() = _isBluetoothEnabled.asStateFlow()
+
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
+            val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+            _isBluetoothEnabled.update { state == BluetoothAdapter.STATE_ON }
+        }
     }
 
     private val _scannedDevice = MutableStateFlow<List<BluetoothDeviceDomain>>(emptyList())
@@ -256,6 +270,10 @@ class AndroidBluetoothController(
 
     init {
         updatePairedDevice()
+        context.registerReceiver(
+            bluetoothStateReceiver,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        )
     }
 
     override fun startScan() {
@@ -472,6 +490,12 @@ class AndroidBluetoothController(
             } finally {
                 isClassicReceiverRegistered = false
             }
+        }
+
+        try {
+            context.unregisterReceiver(bluetoothStateReceiver)
+        } catch (_: IllegalArgumentException) {
+            // ignore
         }
     }
 
