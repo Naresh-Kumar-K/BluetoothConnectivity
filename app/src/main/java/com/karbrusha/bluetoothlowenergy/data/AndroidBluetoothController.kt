@@ -128,12 +128,16 @@ class AndroidBluetoothController(
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.d(TAG, "GATT disconnected device=$address status=$status")
+                    // close() must be called here, after the callback confirms disconnection
+                    try { gatt.close() } catch (_: Exception) {}
+                    bluetoothGatt = null
                     _gattConnectionState.update {
                         it.copy(
                             status = GattConnectionStatus.Disconnected,
                             connectedDevice = null,
                             services = emptyList(),
                             characteristicValues = emptyMap(),
+                            notifyingCharacteristics = emptySet(),
                             errorMessage = null,
                         )
                     }
@@ -270,10 +274,11 @@ class AndroidBluetoothController(
 
     init {
         updatePairedDevice()
-        context.registerReceiver(
-            bluetoothStateReceiver,
-            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
-        )
+        val filter = IntentFilter().apply {
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        context.registerReceiver(bluetoothStateReceiver, filter)
     }
 
     override fun startScan() {
@@ -393,30 +398,44 @@ class AndroidBluetoothController(
         val current = _gattConnectionState.value.connectedDevice
         if (current?.address != device.address) return
 
-        _gattConnectionState.update { it.copy(status = GattConnectionStatus.Disconnecting, errorMessage = null) }
+        _gattConnectionState.update {
+            it.copy(status = GattConnectionStatus.Disconnecting, errorMessage = null)
+        }
 
-        val gatt = bluetoothGatt ?: return
+        val gatt = bluetoothGatt ?: run {
+            // No GATT object — just clear state directly
+            _gattConnectionState.update {
+                it.copy(
+                    status = GattConnectionStatus.Disconnected,
+                    connectedDevice = null,
+                    services = emptyList(),
+                    characteristicValues = emptyMap(),
+                    notifyingCharacteristics = emptySet(),
+                    errorMessage = null,
+                )
+            }
+            return
+        }
+
+        // Call disconnect() only — do NOT call close() here.
+        // close() must be called AFTER onConnectionStateChange fires STATE_DISCONNECTED,
+        // otherwise the disconnect silently fails on many Android devices.
         try {
             gatt.disconnect()
         } catch (_: Exception) {
-            // ignore
-        } finally {
-            try {
-                gatt.close()
-            } catch (_: Exception) {
-                // ignore
-            }
+            // If disconnect() throws, force-close and clear state immediately
+            try { gatt.close() } catch (_: Exception) {}
             bluetoothGatt = null
-        }
-
-        _gattConnectionState.update {
-            it.copy(
-                status = GattConnectionStatus.Disconnected,
-                connectedDevice = null,
-                services = emptyList(),
-                characteristicValues = emptyMap(),
-                errorMessage = null,
-            )
+            _gattConnectionState.update {
+                it.copy(
+                    status = GattConnectionStatus.Disconnected,
+                    connectedDevice = null,
+                    services = emptyList(),
+                    characteristicValues = emptyMap(),
+                    notifyingCharacteristics = emptySet(),
+                    errorMessage = null,
+                )
+            }
         }
     }
 
